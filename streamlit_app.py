@@ -4,6 +4,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 from dbfread import DBF
+from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE
 
 st.set_page_config(
     page_title="Mohon B/S → XLSX Converter",
@@ -103,6 +104,19 @@ if uploaded_file is not None:
 
         for col in datetime_columns:
             df[col] = pd.to_datetime(df[col], errors="coerce")
+
+        # Some DBF files contain control characters (e.g. stray 0x00-0x1F bytes)
+        # that Excel's XML format cannot store. Strip them from every text
+        # column so openpyxl doesn't raise IllegalCharacterError.
+        text_columns = [
+            col for col in df.columns
+            if col not in date_columns and col not in datetime_columns
+        ]
+        for col in text_columns:
+            if df[col].dtype == "object":
+                df[col] = df[col].apply(
+                    lambda v: ILLEGAL_CHARACTERS_RE.sub("", v) if isinstance(v, str) else v
+                )
 
         st.success(
             f"DBF loaded successfully — **{len(df):,} records** and "
